@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高雄天氣與萌寵資訊看板</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Font: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'Microsoft JhengHei', 'sans-serif'],
+                    },
+                    colors: {
+                        glass: 'rgba(255, 255, 255, 0.08)',
+                        'glass-border': 'rgba(255, 255, 255, 0.15)',
+                        'glass-dark': 'rgba(15, 23, 42, 0.75)',
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'float': 'float 6s ease-in-out infinite',
+                    },
+                    keyframes: {
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-6px)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+            background-attachment: fixed;
+            color: #f8fafc;
+            min-height: 100vh;
+        }
+
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .glass-card:hover {
+            background: rgba(255, 255, 255, 0.09);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.5);
+            border-radius: 8px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.4);
+        }
+
+        .progress-bar {
+            transition: width 0.1s linear;
+        }
+
+        .skeleton {
+            background: linear-gradient(90deg, rgba(255,255,255,0.06) 25%, rgba(255,255,255,0.12) 37%, rgba(255,255,255,0.06) 63%);
+            background-size: 400% 100%;
+            animation: skeleton-loading 1.4s ease infinite;
+        }
+
+        @keyframes skeleton-loading {
+            0% { background-position: 100% 50%; }
+            100% { background-position: 0 50%; }
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen text-slate-100 p-3 sm:p-6 md:p-8 select-none">
+
+    <!-- Top Header / Bar -->
+    <header class="w-full max-w-7xl mx-auto mb-6 glass-panel rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row justify-between items-center gap-4">
+        <!-- Logo & Title -->
+        <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-amber-500 to-indigo-600 flex items-center justify-center text-2xl shadow-lg shadow-indigo-500/20">
+                <i class="fa-solid fa-cloud-sun-rain text-white"></i>
+            </div>
+            <div>
+                <div class="flex items-center gap-2">
+                    <h1 class="text-xl sm:text-2xl font-bold tracking-wide bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-100 to-slate-300">
+                        智慧資訊看板
+                    </h1>
+                    <span class="text-[10px] bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 px-2 py-0.5 rounded-full font-medium">Open Data API</span>
+                </div>
+                <p class="text-xs text-slate-400 flex items-center gap-2 mt-0.5">
+                    <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>高雄市 Kaohsiung</span>
+                    <span class="text-slate-600">•</span>
+                    <span id="last-update-tag">最後更新: --:--</span>
+                </p>
+            </div>
+        </div>
+
+        <!-- Clock & Controls -->
+        <div class="flex items-center gap-4 sm:gap-6 w-full md:w-auto justify-between md:justify-end border-t md:border-t-0 border-slate-700/50 pt-3 md:pt-0">
+            <!-- Digital Clock -->
+            <div class="text-right">
+                <div id="live-clock" class="text-2xl sm:text-3xl font-extrabold tracking-tight font-mono text-indigo-200">
+                    00:00:00
+                </div>
+                <div id="live-date" class="text-xs text-slate-400 font-medium">
+                    --年--月--日
+                </div>
+            </div>
+
+            <!-- Header Action Buttons -->
+            <div class="flex items-center gap-2">
+                <button id="refresh-all-btn" title="手動刷新全部資料" class="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition active:scale-95">
+                    <i class="fa-solid fa-arrows-rotate text-sm" id="refresh-icon"></i>
+                </button>
+                <button id="fullscreen-btn" title="切換全螢幕" class="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition active:scale-95">
+                    <i class="fa-solid fa-expand text-sm"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Area (2-Column Grid) -->
+    <main class="w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 flex-grow">
+
+        <!-- ==================== LEFT COLUMN: WEATHER MODULE ==================== -->
+        <section class="lg:col-span-7 flex flex-col gap-6">
+            
+            <!-- Main Current Weather Banner -->
+            <div class="glass-panel rounded-3xl p-6 relative overflow-hidden flex flex-col justify-between min-h-[320px]">
+                <div class="absolute -top-24 -left-24 w-60 h-60 bg-blue-500/20 rounded-full blur-3xl pointer-events-none"></div>
+                <div class="absolute -bottom-24 -right-24 w-60 h-60 bg-amber-500/15 rounded-full blur-3xl pointer-events-none"></div>
+
+                <!-- Top Row: Status badge & Source Info -->
+                <div class="flex flex-wrap justify-between items-center gap-2 z-10">
+                    <div class="flex items-center gap-2">
+                        <div class="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-800/80 border border-slate-700 text-xs font-medium text-slate-300">
+                            <i class="fa-solid fa-location-dot text-rose-400"></i>
+                            <span>高雄市 (22.62°N, 120.30°E)</span>
+                        </div>
+                        <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer" title="查看原始開放 API" class="text-[11px] text-indigo-300 hover:underline flex items-center gap-1 bg-indigo-950/50 px-2.5 py-1 rounded-full border border-indigo-800/50">
+                            <i class="fa-solid fa-database text-[10px]"></i> Open-Meteo
+                        </a>
+                    </div>
+                    <span id="weather-status-badge" class="text-xs px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                        即時連線
+                    </span>
+                </div>
+
+                <!-- Middle Row: Weather Hero Stats (Card Layout) -->
+                <div class="my-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 z-10" id="current-weather-content">
+                    <div class="flex items-center gap-5">
+                        <div id="weather-hero-icon" class="text-6xl sm:text-7xl text-amber-400 animate-float drop-shadow-[0_0_15px_rgba(251,191,36,0.3)]">
+                            <i class="fa-solid fa-sun"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-baseline">
+                                <span id="current-temp" class="text-6xl sm:text-7xl font-extrabold tracking-tight text-white">--</span>
+                                <span class="text-3xl font-light text-slate-300 ml-1">°C</span>
+                            </div>
+                            <p id="weather-text" class="text-lg font-semibold text-indigo-200 mt-1">資料載入中...</p>
+                        </div>
+                    </div>
+
+                    <!-- Extra Quick Stats Grid -->
+                    <div class="bg-slate-900/50 backdrop-blur-md rounded-2xl p-4 border border-slate-700/60 w-full sm:w-auto grid grid-cols-2 gap-4 text-xs">
+                        <div>
+                            <span class="text-slate-400 block mb-1"><i class="fa-solid fa-temperature-half text-amber-400 mr-1"></i>體感溫度</span>
+                            <span id="apparent-temp" class="text-base font-bold text-slate-100">-- °C</span>
+                        </div>
+                        <div>
+                            <span class="text-slate-400 block mb-1"><i class="fa-solid fa-droplet text-blue-400 mr-1"></i>相對濕度</span>
+                            <span id="humidity" class="text-base font-bold text-slate-100">-- %</span>
+                        </div>
+                        <div>
+                            <span class="text-slate-400 block mb-1"><i class="fa-solid fa-wind text-teal-400 mr-1"></i>風速</span>
+                            <span id="wind-speed" class="text-base font-bold text-slate-100">-- km/h</span>
+                        </div>
+                        <div>
+                            <span class="text-slate-400 block mb-1"><i class="fa-solid fa-cloud-rain text-indigo-400 mr-1"></i>降水量</span>
+                            <span id="precipitation" class="text-base font-bold text-slate-100">-- mm</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="z-10 bg-gradient-to-r from-indigo-900/40 to-slate-800/40 border border-indigo-500/20 rounded-xl p-3 flex items-center gap-3">
+                    <div class="w-8 h-8 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-300 flex-shrink-0">
+                        <i class="fa-solid fa-lightbulb"></i>
+                    </div>
+                    <p id="weather-advice" class="text-xs sm:text-sm text-slate-300 truncate">
+                        系統正在分析天氣狀況資訊...
+                    </p>
+                </div>
+            </div>
+
+            <!-- 7-Day Forecast Section -->
+            <div class="glass-panel rounded-3xl p-6 flex flex-col gap-4">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-calendar-week text-indigo-400"></i>
+                        未來一週天氣預報
+                    </h2>
+                    <span class="text-xs text-slate-400">開放氣象預報數據</span>
+                </div>
+
+                <!-- Forecast Cards Container -->
+                <div id="forecast-container" class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2.5 overflow-x-auto pb-1">
+                    <div class="glass-card rounded-2xl p-3 text-center skeleton h-32"></div>
+                    <div class="glass-card rounded-2xl p-3 text-center skeleton h-32"></div>
+                    <div class="glass-card rounded-2xl p-3 text-center skeleton h-32"></div>
+                    <div class="glass-card rounded-2xl p-3 text-center skeleton h-32"></div>
+                    <div class="glass-card rounded-2xl p-3 text-center skeleton h-32"></div>
+                    <div class="glass-card rounded-2xl p-3 text-center skeleton h-32"></div>
+                    <div class="glass-card rounded-2xl p-3 text-center skeleton h-32"></div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- ==================== RIGHT COLUMN: DOG PHOTO MODULE ==================== -->
+        <section class="lg:col-span-5 flex flex-col gap-6">
+            <div class="glass-panel rounded-3xl p-6 flex flex-col justify-between h-full min-h-[480px] relative overflow-hidden">
+                
+                <!-- Header of Dog Card -->
+                <div class="flex justify-between items-center mb-4 z-10">
+                    <div class="flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center">
+                            <i class="fa-solid fa-dog text-base"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <h2 class="text-base font-bold text-white">狗狗繪圖館</h2>
+                                <a href="https://dog.ceo/dog-api/" target="_blank" rel="noopener noreferrer" class="text-[10px] text-amber-300 hover:underline bg-amber-950/50 px-2 py-0.5 rounded-full border border-amber-800/50">
+                                    Dog CEO API
+                                </a>
+                            </div>
+                            <p class="text-xs text-slate-400">隨機開放品種圖片庫</p>
+                        </div>
+                    </div>
+
+                    <!-- Auto Play Badge & Controls -->
+                    <div class="flex items-center gap-2">
+                        <button id="toggle-autoplay-btn" class="px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-xs font-medium text-amber-300 hover:bg-slate-700 transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-pause text-xs" id="autoplay-icon"></i>
+                            <span id="autoplay-text">自動輪播</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="relative w-full flex-grow min-h-[280px] sm:min-h-[340px] rounded-2xl overflow-hidden group bg-slate-950/60 border border-slate-800 dog-img-container flex items-center justify-center">
+                    
+                    <!-- Loading Spinner Overlay -->
+                    <div id="dog-loading" class="absolute inset-0 bg-slate-900/80 backdrop-blur-sm z-20 flex flex-col items-center justify-center gap-3 transition-opacity duration-300">
+                        <div class="w-10 h-10 border-4 border-amber-400/30 border-t-amber-400 rounded-full animate-spin"></div>
+                        <span class="text-xs text-slate-300 font-medium">從 API 下載萌寵中...</span>
+                    </div>
+
+                    <!-- Failure Retry Overlay (Hidden by default) -->
+                    <div id="dog-error-overlay" class="absolute inset-0 bg-slate-900/90 z-20 flex flex-col items-center justify-center p-4 text-center gap-3 hidden">
+                        <i class="fa-solid fa-triangle-exclamation text-3xl text-amber-400"></i>
+                        <p class="text-xs text-slate-300">圖片載入失敗，來源 API 可能暫時無回應</p>
+                        <button id="retry-dog-btn" class="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl transition">
+                            <i class="fa-solid fa-arrows-rotate mr-1"></i>重新嘗試
+                        </button>
+                    </div>
+
+                    <!-- Main Dog Image -->
+                    <img id="dog-image" src="" alt="Random Dog" class="w-full h-full object-cover rounded-2xl opacity-0 transform scale-95 duration-500">
+
+                    <!-- Breed Overlay Badge -->
+                    <div class="absolute bottom-3 left-3 right-3 z-10 flex justify-between items-end gap-2">
+                        <div class="bg-slate-900/80 backdrop-blur-md border border-slate-700/80 px-3.5 py-2 rounded-xl">
+                            <span class="text-[10px] text-amber-400 font-semibold tracking-wider uppercase block">POOCH SPECIES</span>
+                            <h3 id="dog-breed" class="text-sm font-bold text-white capitalize">載入中...</h3>
+                        </div>
+
+                        <!-- Action Controls (Favorite) -->
+                        <div class="flex gap-2">
+                            <button id="fav-dog-btn" title="收藏這張狗狗" class="p-2.5 rounded-xl bg-slate-900/80 hover:bg-rose-600/80 backdrop-blur-md border border-slate-700 text-slate-200 hover:text-white transition active:scale-95">
+                                <i class="fa-regular fa-heart" id="fav-icon"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Slide Progress Bar -->
+                    <div class="absolute top-0 left-0 right-0 h-1 bg-slate-800/80 z-20">
+                        <div id="dog-progress" class="h-full bg-gradient-to-r from-amber-400 to-indigo-500 w-0 progress-bar"></div>
+                    </div>
+                </div>
+
+                <div class="mt-4 flex items-center justify-between gap-3 z-10">
+                    <button id="prev-dog-btn" class="flex-1 py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white font-medium text-xs sm:text-sm transition flex items-center justify-center gap-2 active:scale-98">
+                        <i class="fa-solid fa-chevron-left text-xs"></i>
+                        <span>上一張</span>
+                    </button>
+                    
+                    <button id="next-dog-btn" class="flex-2 py-2.5 px-5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs sm:text-sm shadow-lg shadow-amber-500/20 transition flex items-center justify-center gap-2 active:scale-98">
+                        <span>換下一張</span>
+                        <i class="fa-solid fa-arrow-right text-xs"></i>
+                    </button>
+                </div>
+
+                <!-- Favorite Dog Mini Strip -->
+                <div class="mt-4 border-t border-slate-800 pt-3">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-xs font-semibold text-slate-400 flex items-center gap-1.5">
+                            <i class="fa-solid fa-heart text-rose-400"></i>
+                            我的狗狗收藏 (<span id="fav-count">0</span>)
+                        </span>
+                        <button id="clear-favs-btn" class="text-[11px] text-slate-500 hover:text-rose-400 transition hidden">清空</button>
+                    </div>
+                    <div id="fav-gallery" class="flex items-center gap-2 overflow-x-auto pb-1 min-h-[48px]">
+                        <p id="fav-empty-hint" class="text-xs text-slate-500 italic py-2">點擊 ❤ 收藏喜歡的狗狗圖案</p>
+                    </div>
+                </div>
+
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer with Source Attribution -->
+    <footer class="w-full max-w-7xl mx-auto mt-6 text-center text-xs text-slate-500 py-3 flex flex-col sm:flex-row justify-between items-center border-t border-slate-800 gap-2">
+        <span>&copy; 高雄即時氣象與萌寵資訊看板</span>
+        <div class="flex items-center gap-3">
+            <span>資料來源：</span>
+            <a href="https://open-meteo.com/" target="_blank" class="text-slate-400 hover:text-indigo-300 underline">Open-Meteo Weather API</a>
+            <span>與</span>
+            <a href="https://dog.ceo/dog-api/" target="_blank" class="text-slate-400 hover:text-amber-300 underline">Dog CEO API</a>
+        </div>
+    </footer>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <script>
+        /**
+         * Open-Meteo WMO Weather Code Mappings
+         */
+        const WEATHER_CODES = {
+            0: { text: '晴朗', icon: 'fa-sun', color: 'text-amber-400', advice: '陽光明媚，非常適合外出散步帶狗狗玩耍！' },
+            1: { text: '晴時多雲', icon: 'fa-cloud-sun', color: 'text-amber-300', advice: '天氣舒適，外出運動請記得適度補充水分。' },
+            2: { text: '多雲', icon: 'fa-cloud-sun', color: 'text-indigo-200', advice: '雲量較多，氣溫適中，非常舒服的天氣。' },
+            3: { text: '陰天', icon: 'fa-cloud', color: 'text-slate-400', advice: '天色較陰沉，出門建議帶一把備用雨傘。' },
+            45: { text: '起霧', icon: 'fa-smog', color: 'text-slate-300', advice: '能見度較低，開車行車請注意安全距離。' },
+            48: { text: '濃霧霧淞', icon: 'fa-smog', color: 'text-slate-300', advice: '空氣濕度極高，請注意道路視線。' },
+            51: { text: '輕微毛毛雨', icon: 'fa-cloud-rain', color: 'text-blue-300', advice: '局部有微量降雨，建議攜帶輕便雨具。' },
+            53: { text: '毛毛雨', icon: 'fa-cloud-rain', color: 'text-blue-400', advice: '細雨綿綿，注意路面濕滑。' },
+            55: { text: '較大毛毛雨', icon: 'fa-cloud-showers-heavy', color: 'text-blue-500', advice: '記得帶傘，照顧好寵物毛髮避免打濕。' },
+            61: { text: '小雨', icon: 'fa-cloud-rain', color: 'text-sky-400', advice: '外出請記得帶傘，地面較濕滑。' },
+            63: { text: '中雨', icon: 'fa-cloud-showers-heavy', color: 'text-sky-500', advice: '雨勢明顯，外出請穿著雨衣或帶大傘。' },
+            65: { text: '豪雨', icon: 'fa-cloud-showers-water', color: 'text-blue-600', advice: '雨勢強勁，非必要請減少戶外活動。' },
+            80: { text: '陣雨', icon: 'fa-cloud-sun-rain', color: 'text-indigo-400', advice: '天氣較不穩定，偶有短暫陣雨發生。' },
+            81: { text: '強烈陣雨', icon: 'fa-cloud-showers-heavy', color: 'text-indigo-500', advice: '注意短延時強降雨與積水。' },
+            82: { text: '劇烈陣雨', icon: 'fa-cloud-showers-water', color: 'text-indigo-600', advice: '戶外雨勢猛烈，請留在室內避雨。' },
+            95: { text: '雷陣雨', icon: 'fa-cloud-bolt', color: 'text-purple-400', advice: '有雷擊機率，請留在安全室內，寵物可能受雷聲驚嚇。' },
+            96: { text: '雷雨伴隨冰雹', icon: 'fa-cloud-bolt', color: 'text-purple-500', advice: '天氣極不穩定，請注意自身與毛孩安全。' },
+            99: { text: '強雷雨冰雹', icon: 'fa-cloud-bolt', color: 'text-rose-500', advice: '劇烈天氣警告，請儘速至安全室內躲避。' }
+        };
+
+        // Backup high-res dog photos in case network/CORS blocks Dog CEO API inside sandboxed iframe
+        const FALLBACK_DOG_IMAGES = [
+            { url: 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=800&q=80', breed: 'Beagle (比格犬)' },
+            { url: 'https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?auto=format&fit=crop&w=800&q=80', breed: 'Golden Retriever (黃金獵犬)' },
+            { url: 'https://images.unsplash.com/photo-1587300003388-59208cc962cb?auto=format&fit=crop&w=800&q=80', breed: 'Siberian Husky (哈士奇)' },
+            { url: 'https://images.unsplash.com/photo-1537151625747-768eb6cf92b2?auto=format&fit=crop&w=800&q=80', breed: 'Welsh Corgi (柯基犬)' },
+            { url: 'https://images.unsplash.com/photo-1517849845537-4d257902454a?auto=format&fit=crop&w=800&q=80', breed: 'French Bulldog (法國鬥牛犬)' },
+            { url: 'https://images.unsplash.com/photo-1561037404-61cd46aa615b?auto=format&fit=crop&w=800&q=80', breed: 'Shiba Inu (柴犬)' }
+        ];
+
+        function getWeatherInfo(code) {
+            return WEATHER_CODES[code] || {
+                text: '多雲時晴',
+                icon: 'fa-cloud-sun',
+                color: 'text-amber-300',
+                advice: '天氣多變，出門記得留意最新氣象資訊。'
+            };
+        }
+
+        const state = {
+            weatherData: null,
+            lastWeatherFetch: null,
+            currentDogUrl: '',
+            dogHistory: [],
+            dogHistoryIndex: -1,
+            favorites: JSON.parse(localStorage.getItem('fav_dogs') || '[]'),
+            isAutoPlaying: true,
+            slideDuration: 8000,
+            slideProgressInterval: null,
+            progressStartTime: null,
+            fallbackDogIndex: 0
+        };
+
+        const DOM = {
+            clock: document.getElementById('live-clock'),
+            date: document.getElementById('live-date'),
+            lastUpdateTag: document.getElementById('last-update-tag'),
+            refreshBtn: document.getElementById('refresh-all-btn'),
+            refreshIcon: document.getElementById('refresh-icon'),
+            fullscreenBtn: document.getElementById('fullscreen-btn'),
+            
+            // Weather Elements
+            currentTemp: document.getElementById('current-temp'),
+            weatherText: document.getElementById('weather-text'),
+            weatherHeroIcon: document.getElementById('weather-hero-icon'),
+            apparentTemp: document.getElementById('apparent-temp'),
+            humidity: document.getElementById('humidity'),
+            windSpeed: document.getElementById('wind-speed'),
+            precipitation: document.getElementById('precipitation'),
+            weatherAdvice: document.getElementById('weather-advice'),
+            weatherStatusBadge: document.getElementById('weather-status-badge'),
+            forecastContainer: document.getElementById('forecast-container'),
+
+            // Dog Elements
+            dogImage: document.getElementById('dog-image'),
+            dogBreed: document.getElementById('dog-breed'),
+            dogLoading: document.getElementById('dog-loading'),
+            dogErrorOverlay: document.getElementById('dog-error-overlay'),
+            retryDogBtn: document.getElementById('retry-dog-btn'),
+            dogProgress: document.getElementById('dog-progress'),
+            nextDogBtn: document.getElementById('next-dog-btn'),
+            prevDogBtn: document.getElementById('prev-dog-btn'),
+            toggleAutoplayBtn: document.getElementById('toggle-autoplay-btn'),
+            autoplayIcon: document.getElementById('autoplay-icon'),
+            autoplayText: document.getElementById('autoplay-text'),
+            favBtn: document.getElementById('fav-dog-btn'),
+            favIcon: document.getElementById('fav-icon'),
+            favGallery: document.getElementById('fav-gallery'),
+            favCount: document.getElementById('fav-count'),
+            favEmptyHint: document.getElementById('fav-empty-hint'),
+            clearFavsBtn: document.getElementById('clear-favs-btn'),
+
+            toastContainer: document.getElementById('toast-container')
+        };
+
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            const bgClass = type === 'error' ? 'bg-rose-900/90 border-rose-500' : 
+                            type === 'success' ? 'bg-emerald-900/90 border-emerald-500' : 
+                            'bg-slate-800/90 border-indigo-500';
+            const icon = type === 'error' ? 'fa-circle-exclamation text-rose-400' :
+                         type === 'success' ? 'fa-circle-check text-emerald-400' :
+                         'fa-circle-info text-indigo-400';
+
+            toast.className = `pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-xl border ${bgClass} backdrop-blur-md text-xs sm:text-sm text-white shadow-xl transform translate-y-2 opacity-0 transition-all duration-300`;
+            toast.innerHTML = `<i class="fa-solid ${icon}"></i><span>${message}</span>`;
+
+            DOM.toastContainer.appendChild(toast);
+
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        function updateClock() {
+            const now = new Date();
+            DOM.clock.textContent = now.toLocaleTimeString('zh-TW', { hour12: false });
+            const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+            DOM.date.textContent = now.toLocaleDateString('zh-TW', options);
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        const KAOHSIUNG_WEATHER_API = 'https://api.open-meteo.com/v1/forecast?latitude=22.6273&longitude=120.3014&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia%2FTaipei';
+
+        // Generates realistic Kaohsiung offline data if network/API is completely unreachable inside an iframe
+        function generateFallbackWeatherData() {
+            const now = new Date();
+            const month = now.getMonth() + 1;
+            const baseTemp = (month >= 5 && month <= 10) ? 29 : 23;
+            
+            const dailyTimes = [];
+            const dailyCodes = [];
+            const dailyMax = [];
+            const dailyMin = [];
+            const dailyRain = [];
+
+            for (let i = 0; i < 7; i++) {
+                const d = new Date(now);
+                d.setDate(d.getDate() + i);
+                dailyTimes.push(d.toISOString().split('T')[0]);
+                dailyCodes.push(i % 3 === 0 ? 1 : (i % 4 === 0 ? 2 : 0));
+                dailyMax.push(baseTemp + (i % 2));
+                dailyMin.push(baseTemp - 5);
+                dailyRain.push(i % 3 === 0 ? 20 : 10);
+            }
+
+            return {
+                current: {
+                    temperature_2m: baseTemp,
+                    apparent_temperature: baseTemp + 2,
+                    relative_humidity_2m: 75,
+                    precipitation: 0.0,
+                    weather_code: 1,
+                    wind_speed_10m: 11.8
+                },
+                daily: {
+                    time: dailyTimes,
+                    weather_code: dailyCodes,
+                    temperature_2m_max: dailyMax,
+                    temperature_2m_min: dailyMin,
+                    precipitation_probability_max: dailyRain
+                }
+            };
+        }
+
+        async function fetchWeatherData() {
+            DOM.weatherStatusBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span> 更新中...`;
+            
+            let data = null;
+            let isOfflineFallback = false;
+
+            try {
+                // Fetch with a 5 second timeout guard
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+                const response = await fetch(KAOHSIUNG_WEATHER_API, { signal: controller.signal });
+                clearTimeout(timeoutId);
+
+                if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
+                data = await response.json();
+            } catch (err) {
+                console.warn('Weather API fetch failed or restricted in sandbox iframe:', err.message || err);
+                
+                // 1. Try LocalStorage cached data
+                const cached = localStorage.getItem('cached_weather_data');
+                if (cached) {
+                    try { data = JSON.parse(cached); } catch(e){}
+                }
+
+                // 2. If no cache exists, generate fallback realistic offline data
+                if (!data) {
+                    data = generateFallbackWeatherData();
+                    isOfflineFallback = true;
+                }
+            }
+
+            state.weatherData = data;
+            state.lastWeatherFetch = new Date();
+
+            if (!isOfflineFallback) {
+                try {
+                    localStorage.setItem('cached_weather_data', JSON.stringify(data));
+                    localStorage.setItem('cached_weather_time', state.lastWeatherFetch.toISOString());
+                } catch(e){}
+            }
+
+            renderWeather(data);
+            
+            if (isOfflineFallback) {
+                DOM.weatherStatusBadge.className = "text-xs px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center gap-1.5";
+                DOM.weatherStatusBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> 展示數據 (離線)`;
+                DOM.lastUpdateTag.textContent = `模式: 沙盒離線備援`;
+            } else {
+                DOM.weatherStatusBadge.className = "text-xs px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5";
+                DOM.weatherStatusBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> 即時數據`;
+                DOM.lastUpdateTag.textContent = `最後更新: ${state.lastWeatherFetch.toLocaleTimeString('zh-TW', {hour: '2-digit', minute:'2-digit'})}`;
+            }
+        }
+
+        function renderWeather(data) {
+            const current = data.current;
+            const info = getWeatherInfo(current.weather_code);
+
+            DOM.currentTemp.textContent = Math.round(current.temperature_2m);
+            DOM.weatherText.textContent = info.text;
+            DOM.weatherHeroIcon.className = `text-6xl sm:text-7xl ${info.color} animate-float drop-shadow-[0_0_15px_rgba(255,255,255,0.2)]`;
+            DOM.weatherHeroIcon.innerHTML = `<i class="fa-solid ${info.icon}"></i>`;
+
+            DOM.apparentTemp.textContent = `${Math.round(current.apparent_temperature)} °C`;
+            DOM.humidity.textContent = `${current.relative_humidity_2m} %`;
+            DOM.windSpeed.textContent = `${current.wind_speed_10m} km/h`;
+            DOM.precipitation.textContent = `${current.precipitation} mm`;
+            DOM.weatherAdvice.textContent = info.advice;
+
+            renderForecast(data.daily);
+        }
+
+        function renderForecast(daily) {
+            DOM.forecastContainer.innerHTML = '';
+            if (!daily || !daily.time) return;
+
+            const days = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
+
+            daily.time.forEach((timeStr, idx) => {
+                const dateObj = new Date(timeStr);
+                const dayName = idx === 0 ? '今天' : days[dateObj.getDay()];
+                const code = daily.weather_code[idx];
+                const info = getWeatherInfo(code);
+                const maxTemp = Math.round(daily.temperature_2m_max[idx]);
+                const minTemp = Math.round(daily.temperature_2m_min[idx]);
+                const rainProb = daily.precipitation_probability_max ? daily.precipitation_probability_max[idx] : 0;
+
+                const card = document.createElement('div');
+                card.className = "glass-card rounded-2xl p-2.5 sm:p-3 text-center flex flex-col justify-between items-center flex-shrink-0 min-w-[85px] border border-slate-700/50";
+                
+                card.innerHTML = `
+                    <span class="text-xs font-medium text-slate-300 block mb-1">${dayName}</span>
+                    <span class="text-[10px] text-slate-500 block mb-1">${dateObj.getMonth() + 1}/${dateObj.getDate()}</span>
+                    <div class="my-1.5 text-2xl ${info.color}" title="${info.text}">
+                        <i class="fa-solid ${info.icon}"></i>
+                    </div>
+                    <div class="text-xs font-bold text-white mt-1">
+                        ${maxTemp}° <span class="text-slate-400 font-normal text-[11px]">${minTemp}°</span>
+                    </div>
+                    <div class="text-[10px] text-sky-400 flex items-center gap-0.5 mt-1">
+                        <i class="fa-solid fa-droplet text-[9px]"></i>
+                        <span>${rainProb}%</span>
+                    </div>
+                `;
+
+                DOM.forecastContainer.appendChild(card);
+            });
+        }
+
+        const DOG_CEO_API = 'https://dog.ceo/api/breeds/image/random';
+
+        function extractBreedName(url) {
+            try {
+                const match = url.match(/breeds\/([^\/]+)\//);
+                if (match && match[1]) {
+                    const rawBreed = match[1];
+                    const parts = rawBreed.split('-');
+                    return parts.reverse().map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
+                }
+            } catch (e) {}
+            return '可愛汪星人';
+        }
+
+        async function fetchDogPhoto(isNext = true) {
+            DOM.dogLoading.classList.remove('opacity-0', 'pointer-events-none');
+            DOM.dogErrorOverlay.classList.add('hidden');
+            resetSlideTimer();
+
+            try {
+                let imgUrl = '';
+                let breedName = '';
+                
+                if (!isNext && state.dogHistoryIndex > 0) {
+                    state.dogHistoryIndex--;
+                    const prevItem = state.dogHistory[state.dogHistoryIndex];
+                    imgUrl = typeof prevItem === 'string' ? prevItem : prevItem.url;
+                    breedName = typeof prevItem === 'string' ? extractBreedName(imgUrl) : prevItem.breed;
+                } else {
+                    let fetchSuccess = false;
+                    try {
+                        const controller = new AbortController();
+                        const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+                        const res = await fetch(DOG_CEO_API, { signal: controller.signal });
+                        clearTimeout(timeoutId);
+
+                        if (res.ok) {
+                            const data = await res.json();
+                            if (data.status === 'success' && data.message) {
+                                imgUrl = data.message;
+                                breedName = extractBreedName(imgUrl);
+                                fetchSuccess = true;
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('Dog CEO API unreachable, using backup pooch image library.');
+                    }
+
+                    // Fallback to local gallery if network/API fails
+                    if (!fetchSuccess) {
+                        const fallbackItem = FALLBACK_DOG_IMAGES[state.fallbackDogIndex % FALLBACK_DOG_IMAGES.length];
+                        state.fallbackDogIndex++;
+                        imgUrl = fallbackItem.url;
+                        breedName = fallbackItem.breed;
+                    }
+
+                    if (state.dogHistoryIndex < state.dogHistory.length - 1) {
+                        state.dogHistory = state.dogHistory.slice(0, state.dogHistoryIndex + 1);
+                    }
+                    state.dogHistory.push({ url: imgUrl, breed: breedName });
+                    state.dogHistoryIndex = state.dogHistory.length - 1;
+                }
+
+                state.currentDogUrl = imgUrl;
+
+                const img = new Image();
+                img.src = imgUrl;
+                img.onload = () => {
+                    DOM.dogImage.classList.add('opacity-0', 'scale-95');
+                    
+                    setTimeout(() => {
+                        DOM.dogImage.src = imgUrl;
+                        DOM.dogBreed.textContent = breedName;
+                        DOM.dogImage.classList.remove('opacity-0', 'scale-95');
+                        DOM.dogLoading.classList.add('opacity-0', 'pointer-events-none');
+                        
+                        updateFavButtonState();
+                        updatePrevBtnState();
+                        startSlideTimer();
+                    }, 200);
+                };
+
+                img.onerror = () => {
+                    // Preload error fallback
+                    DOM.dogLoading.classList.add('opacity-0', 'pointer-events-none');
+                    const fallbackItem = FALLBACK_DOG_IMAGES[0];
+                    DOM.dogImage.src = fallbackItem.url;
+                    DOM.dogBreed.textContent = fallbackItem.breed;
+                    DOM.dogImage.classList.remove('opacity-0', 'scale-95');
+                    startSlideTimer();
+                };
+
+            } catch (err) {
+                console.error('Dog photo process error:', err);
+                DOM.dogLoading.classList.add('opacity-0', 'pointer-events-none');
+                DOM.dogErrorOverlay.classList.remove('hidden');
+            }
+        }
+
+        function updatePrevBtnState() {
+            DOM.prevDogBtn.disabled = state.dogHistoryIndex <= 0;
+            if (state.dogHistoryIndex <= 0) {
+                DOM.prevDogBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                DOM.prevDogBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        function startSlideTimer() {
+            if (!state.isAutoPlaying) return;
+            stopSlideTimer();
+            state.progressStartTime = Date.now();
+
+            state.slideProgressInterval = setInterval(() => {
+                const elapsed = Date.now() - state.progressStartTime;
+                const percentage = Math.min((elapsed / state.slideDuration) * 100, 100);
+                DOM.dogProgress.style.width = `${percentage}%`;
+
+                if (elapsed >= state.slideDuration) {
+                    stopSlideTimer();
+                    fetchDogPhoto(true);
+                }
+            }, 100);
+        }
+
+        function stopSlideTimer() {
+            if (state.slideProgressInterval) {
+                clearInterval(state.slideProgressInterval);
+                state.slideProgressInterval = null;
+            }
+        }
+
+        function resetSlideTimer() {
+            stopSlideTimer();
+            DOM.dogProgress.style.width = '0%';
+        }
+
+        function toggleAutoplay() {
+            state.isAutoPlaying = !state.isAutoPlaying;
+
+            if (state.isAutoPlaying) {
+                DOM.autoplayIcon.className = "fa-solid fa-pause text-xs";
+                DOM.autoplayText.textContent = "自動輪播";
+                DOM.toggleAutoplayBtn.className = "px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-xs font-medium text-amber-300 hover:bg-slate-700 transition flex items-center gap-1.5";
+                startSlideTimer();
+                showToast('已開啟自動輪播', 'info');
+            } else {
+                stopSlideTimer();
+                DOM.dogProgress.style.width = '0%';
+                DOM.autoplayIcon.className = "fa-solid fa-play text-xs";
+                DOM.autoplayText.textContent = "已暫停";
+                DOM.toggleAutoplayBtn.className = "px-3 py-1.5 rounded-full bg-slate-800 border border-slate-700 text-xs font-medium text-slate-400 hover:bg-slate-700 transition flex items-center gap-1.5";
+                showToast('已暫停自動輪播', 'info');
+            }
+        }
+
+        function toggleFavorite() {
+            if (!state.currentDogUrl) return;
+
+            const index = state.favorites.findIndex(item => item.url === state.currentDogUrl);
+
+            if (index >= 0) {
+                state.favorites.splice(index, 1);
+                showToast('已移除收藏', 'info');
+            } else {
+                const breed = DOM.dogBreed.textContent || extractBreedName(state.currentDogUrl);
+                state.favorites.unshift({
+                    url: state.currentDogUrl,
+                    breed: breed,
+                    time: new Date().toLocaleDateString('zh-TW')
+                });
+                showToast('❤️ 已成功加入收藏庫', 'success');
+            }
+
+            try {
+                localStorage.setItem('fav_dogs', JSON.stringify(state.favorites));
+            } catch(e){}
+            updateFavButtonState();
+            renderFavorites();
+        }
+
+        function updateFavButtonState() {
+            const isFav = state.favorites.some(item => item.url === state.currentDogUrl);
+            if (isFav) {
+                DOM.favIcon.className = "fa-solid fa-heart text-rose-500";
+                DOM.favBtn.classList.add('border-rose-500/50', 'bg-rose-950/40');
+            } else {
+                DOM.favIcon.className = "fa-regular fa-heart text-slate-200";
+                DOM.favBtn.classList.remove('border-rose-500/50', 'bg-rose-950/40');
+            }
+        }
+
+        function renderFavorites() {
+            DOM.favGallery.innerHTML = '';
+            DOM.favCount.textContent = state.favorites.length;
+
+            if (state.favorites.length === 0) {
+                DOM.favGallery.appendChild(DOM.favEmptyHint);
+                DOM.favEmptyHint.classList.remove('hidden');
+                DOM.clearFavsBtn.classList.add('hidden');
+                return;
+            }
+
+            DOM.favEmptyHint.classList.add('hidden');
+            DOM.clearFavsBtn.classList.remove('hidden');
+
+            state.favorites.forEach((fav) => {
+                const thumb = document.createElement('div');
+                thumb.className = "relative w-11 h-11 rounded-lg overflow-hidden flex-shrink-0 cursor-pointer border border-slate-700 hover:border-amber-400 transition group";
+                thumb.innerHTML = `
+                    <img src="${fav.url}" alt="${fav.breed}" class="w-full h-full object-cover">
+                    <div class="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+                        <i class="fa-solid fa-eye text-xs text-white"></i>
+                    </div>
+                `;
+                thumb.title = `${fav.breed} (點擊預覽)`;
+                thumb.addEventListener('click', () => {
+                    state.currentDogUrl = fav.url;
+                    DOM.dogImage.src = fav.url;
+                    DOM.dogBreed.textContent = fav.breed;
+                    updateFavButtonState();
+                    resetSlideTimer();
+                    startSlideTimer();
+                });
+
+                DOM.favGallery.appendChild(thumb);
+            });
+        }
+
+        function setupEventListeners() {
+            DOM.nextDogBtn.addEventListener('click', () => fetchDogPhoto(true));
+            DOM.prevDogBtn.addEventListener('click', () => fetchDogPhoto(false));
+            DOM.retryDogBtn.addEventListener('click', () => fetchDogPhoto(true));
+            DOM.toggleAutoplayBtn.addEventListener('click', toggleAutoplay);
+            DOM.favBtn.addEventListener('click', toggleFavorite);
+
+            DOM.clearFavsBtn.addEventListener('click', () => {
+                state.favorites = [];
+                try { localStorage.setItem('fav_dogs', '[]'); } catch(e){}
+                renderFavorites();
+                updateFavButtonState();
+                showToast('已清空收藏項目', 'info');
+            });
+
+            DOM.refreshBtn.addEventListener('click', () => {
+                DOM.refreshIcon.classList.add('fa-spin');
+                showToast('正在重新載入資料...', 'info');
+
+                Promise.all([fetchWeatherData(), fetchDogPhoto(true)]).finally(() => {
+                    setTimeout(() => {
+                        DOM.refreshIcon.classList.remove('fa-spin');
+                    }, 800);
+                });
+            });
+
+            DOM.fullscreenBtn.addEventListener('click', () => {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(() => {
+                        showToast('瀏覽器不支援全螢幕切換', 'error');
+                    });
+                } else {
+                    document.exitFullscreen();
+                }
+            });
+
+            // Refresh weather every 10 mins
+            setInterval(fetchWeatherData, 10 * 60 * 1000);
+        }
+
+        window.onload = function() {
+            setupEventListeners();
+            renderFavorites();
+            fetchWeatherData();
+            fetchDogPhoto(true);
+        };
+    </script>
+</body>
+</html>
